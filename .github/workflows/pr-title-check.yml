@@ -1,0 +1,23 @@
+name: PR Title Check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  merge_group:
+
+jobs:
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simulate long running tests
+        run: sleep 30
+      - name: Fail if title contains [FAIL]
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title || github.event.merge_group.head_commit.message }}
+        run: |
+          shopt -s nocasematch
+          if [[ "$PR_TITLE" == *"[FAIL]"* ]]; then
+            echo "Title contains [FAIL]: $PR_TITLE"
+            exit 1
+          fi
+          echo "Title OK: $PR_TITLE"
