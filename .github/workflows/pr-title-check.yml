@@ -11,13 +11,42 @@ jobs:
     steps:
       - name: Simulate long running tests
         run: sleep 30
-      - name: Fail if title contains [FAIL]
+      - name: Resolve PR title
+        id: resolve
         env:
-          PR_TITLE: ${{ github.event.pull_request.title || github.event.merge_group.head_commit.message }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_TITLE_FROM_EVENT: ${{ github.event.pull_request.title }}
+          MQ_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            PR_TITLE="$PR_TITLE_FROM_EVENT"
+          else
+            # merge_group head_ref format: refs/heads/gh-readonly-queue/<base>/pr-<NUM>-<sha>
+            if [[ "$MQ_HEAD_REF" =~ pr-([0-9]+)- ]]; then
+              PR_NUMBER="${BASH_REMATCH[1]}"
+              echo "Resolved PR number from merge_group head_ref: $PR_NUMBER"
+              PR_TITLE=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .title)
+            else
+              echo "Could not parse PR number from head_ref: $MQ_HEAD_REF"
+              exit 1
+            fi
+          fi
+          echo "PR title: $PR_TITLE"
+          {
+            echo "pr_title<<EOF"
+            echo "$PR_TITLE"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Fail if PR title contains [FAIL]
+        env:
+          PR_TITLE: ${{ steps.resolve.outputs.pr_title }}
         run: |
           shopt -s nocasematch
           if [[ "$PR_TITLE" == *"[FAIL]"* ]]; then
-            echo "Title contains [FAIL]: $PR_TITLE"
+            echo "PR title contains [FAIL]: $PR_TITLE"
             exit 1
           fi
-          echo "Title OK: $PR_TITLE"
+          echo "PR title OK: $PR_TITLE"
