@@ -1,0 +1,22 @@
+name: PR Only Check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simulate long running tests
+        run: sleep 30
+      - name: Fail if title contains [FAIL-PR]
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          shopt -s nocasematch
+          if [[ "$PR_TITLE" == *"[FAIL-PR]"* ]]; then
+            echo "PR title contains [FAIL-PR]: $PR_TITLE"
+            exit 1
+          fi
+          echo "PR title OK: $PR_TITLE"

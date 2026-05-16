@@ -1,0 +1,21 @@
+name: Merge Queue Only Check
+
+on:
+  merge_group:
+
+jobs:
+  check-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Simulate long running tests
+        run: sleep 30
+      - name: Fail if title contains [FAIL-MQ]
+        env:
+          MQ_TITLE: ${{ github.event.merge_group.head_commit.message }}
+        run: |
+          shopt -s nocasematch
+          if [[ "$MQ_TITLE" == *"[FAIL-MQ]"* ]]; then
+            echo "Title contains [FAIL-MQ]: $MQ_TITLE"
+            exit 1
+          fi
+          echo "Title OK: $MQ_TITLE"
