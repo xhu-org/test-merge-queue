@@ -6,16 +6,41 @@ on:
 jobs:
   check-title:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     steps:
       - name: Simulate long running tests
         run: sleep 30
-      - name: Fail if title contains [FAIL-MQ]
+      - name: Resolve PR title from merge_group
+        id: resolve
         env:
-          MQ_TITLE: ${{ github.event.merge_group.head_commit.message }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MQ_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          REPO: ${{ github.repository }}
         run: |
-          shopt -s nocasematch
-          if [[ "$MQ_TITLE" == *"[FAIL-MQ]"* ]]; then
-            echo "Title contains [FAIL-MQ]: $MQ_TITLE"
+          set -euo pipefail
+          # merge_group head_ref format: refs/heads/gh-readonly-queue/<base>/pr-<NUM>-<sha>
+          # Anchor to the trailing /pr-<NUM>-<sha> segment so a base branch name
+          # containing "pr-<digits>-" can't be matched by accident.
+          if [[ "$MQ_HEAD_REF" =~ /pr-([0-9]+)-[0-9a-f]+$ ]]; then
+            PR_NUMBER="${BASH_REMATCH[1]}"
+            echo "Resolved PR number from merge_group head_ref: $PR_NUMBER"
+            PR_TITLE=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .title)
+          else
+            echo "Could not parse PR number from head_ref: $MQ_HEAD_REF"
             exit 1
           fi
-          echo "Title OK: $MQ_TITLE"
+          printf 'PR title: %s\n' "$PR_TITLE"
+          # PR titles are always a single line, so the simple key=value form is safe.
+          # Use printf so titles starting with '-' aren't treated as echo flags.
+          printf 'pr_title=%s\n' "$PR_TITLE" >> "$GITHUB_OUTPUT"
+      - name: Fail if PR title contains [FAIL-MQ]
+        env:
+          PR_TITLE: ${{ steps.resolve.outputs.pr_title }}
+        run: |
+          shopt -s nocasematch
+          if [[ "$PR_TITLE" == *"[FAIL-MQ]"* ]]; then
+            echo "PR title contains [FAIL-MQ]: $PR_TITLE"
+            exit 1
+          fi
+          echo "PR title OK: $PR_TITLE"
