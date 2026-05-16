@@ -18,7 +18,9 @@ jobs:
         run: |
           set -euo pipefail
           # merge_group head_ref format: refs/heads/gh-readonly-queue/<base>/pr-<NUM>-<sha>
-          if [[ "$MQ_HEAD_REF" =~ pr-([0-9]+)- ]]; then
+          # Anchor to the trailing /pr-<NUM>-<sha> segment so a base branch name
+          # containing "pr-<digits>-" can't be matched by accident.
+          if [[ "$MQ_HEAD_REF" =~ /pr-([0-9]+)-[0-9a-f]+$ ]]; then
             PR_NUMBER="${BASH_REMATCH[1]}"
             echo "Resolved PR number from merge_group head_ref: $PR_NUMBER"
             PR_TITLE=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .title)
