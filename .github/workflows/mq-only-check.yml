@@ -6,6 +6,8 @@ on:
 jobs:
   check-title:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
     steps:
       - name: Simulate long running tests
         run: sleep 30
@@ -28,12 +30,10 @@ jobs:
             echo "Could not parse PR number from head_ref: $MQ_HEAD_REF"
             exit 1
           fi
-          echo "PR title: $PR_TITLE"
-          {
-            echo "pr_title<<EOF"
-            echo "$PR_TITLE"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          printf 'PR title: %s\n' "$PR_TITLE"
+          # PR titles are always a single line, so the simple key=value form is safe.
+          # Use printf so titles starting with '-' aren't treated as echo flags.
+          printf 'pr_title=%s\n' "$PR_TITLE" >> "$GITHUB_OUTPUT"
       - name: Fail if PR title contains [FAIL-MQ]
         env:
           PR_TITLE: ${{ steps.resolve.outputs.pr_title }}
